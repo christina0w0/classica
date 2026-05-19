@@ -119,10 +119,6 @@ function PracticePageInner() {
   }, [preselectedPieceId, pieces, fetchSheetsForPiece]);
 
   const startRecordFlow = useCallback(() => {
-    if (pieces.length === 0) {
-      router.push("/");
-      return;
-    }
     if (pieces.length === 1) {
       setSelectedPiece(pieces[0]);
       setView("sheet-music");
@@ -130,7 +126,7 @@ function PracticePageInner() {
     } else {
       setView("select-piece");
     }
-  }, [pieces, router, fetchSheetsForPiece]);
+  }, [pieces, fetchSheetsForPiece]);
 
   const handlePieceSelect = useCallback((piece: MusicPiece) => {
     setSelectedPiece(piece);
@@ -690,8 +686,23 @@ function PracticePageInner() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
             >
-              {/* Search */}
-              <div className="mb-4">
+              {pieces.length === 0 ? (
+                <div className="flex flex-col items-center justify-center pt-24 gap-4 text-center">
+                  <p className="text-sm font-body text-text-primary">No pieces in your collection</p>
+                  <p className="text-xs font-body text-text-secondary max-w-[220px]">Add pieces to your collection first before recording a practice session.</p>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => { setView("journal"); router.push("/"); }}
+                    className="h-10 px-5 rounded-full font-body text-sm font-medium"
+                    style={{ background: "linear-gradient(135deg, #c5c960 0%, #a8b84d 100%)", color: "#1a1f0e" }}
+                  >
+                    Go to Collection
+                  </motion.button>
+                </div>
+              ) : null}
+
+              {/* Search + list */}
+              {pieces.length > 0 && (<div><div className="mb-4">
                 <div className="glass-card flex items-center gap-2 px-3 py-2.5 rounded-xl">
                   <svg
                     width="16"
@@ -755,12 +766,12 @@ function PracticePageInner() {
                   </motion.button>
                 ))}
 
-                {filteredPieces.length === 0 && (
+                {filteredPieces.length === 0 && pieceSearch && (
                   <p className="text-center text-xs font-body text-text-secondary py-8">
                     No pieces found matching &ldquo;{pieceSearch}&rdquo;
                   </p>
                 )}
-              </div>
+              </div></div>)}
             </motion.div>
           )}
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type PanInfo } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { Composer, MusicPiece, ERA_CONFIG } from "@/types";
 import { composers } from "@/lib/composers-seed";
@@ -93,6 +93,15 @@ export default function AddPieceModal({
     }, 600);
   }, [canSubmit, selectedComposer, title, onAdded, onClose]);
 
+  const handleDragEnd = useCallback(
+    (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+      if (info.offset.y > 90 || info.velocity.y > 700) {
+        onClose();
+      }
+    },
+    [onClose],
+  );
+
   const eraColor = selectedComposer
     ? ERA_CONFIG[selectedComposer.era].color
     : "#c5c960";
@@ -117,39 +126,35 @@ export default function AddPieceModal({
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 300 }}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.35 }}
+            dragMomentum={false}
+            onDragEnd={handleDragEnd}
             className="fixed bottom-0 left-0 right-0 z-50 mx-auto max-w-md"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-piece-title"
           >
             <div
               className="rounded-t-2xl border border-border-subtle border-b-0 overflow-hidden"
               style={{ background: "var(--bg-card-solid)" }}
             >
-              {/* Drag handle */}
-              <div className="flex justify-center pt-3 pb-1">
-                <div className="w-10 h-1 rounded-full bg-text-secondary/30" />
-              </div>
+              <div className="cursor-grab touch-none active:cursor-grabbing">
+                {/* Drag handle */}
+                <div className="flex justify-center pt-3 pb-1">
+                  <div className="w-10 h-1 rounded-full bg-text-secondary/30" />
+                </div>
 
-              {/* Header */}
-              <div className="px-5 pb-4 flex items-center justify-between">
-                <h2 className="font-display text-xl italic text-text-primary">
-                  Add Piece
-                </h2>
-                <button
-                  onClick={onClose}
-                  className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors"
-                >
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#9a9e80"
-                    strokeWidth="2"
-                    strokeLinecap="round"
+                {/* Header */}
+                <div className="px-5 pb-4">
+                  <h2
+                    id="add-piece-title"
+                    className="font-display text-xl italic text-text-primary"
                   >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
+                    Add Piece
+                  </h2>
+                </div>
               </div>
 
               <div className="px-5 pb-6 space-y-4">
@@ -400,8 +405,8 @@ export default function AddPieceModal({
                 </button>
               </div>
 
-              {/* Safe area padding for iOS */}
-              <div className="h-[env(safe-area-inset-bottom,0px)]" />
+              {/* Safe area + nav bar clearance */}
+              <div className="h-[calc(env(safe-area-inset-bottom,0px)+80px)]" />
             </div>
           </motion.div>
         </>

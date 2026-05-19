@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { MusicPiece, PracticeSession } from "@/types";
+import { MusicPiece, PracticeSession, SheetMusic } from "@/types";
 import { getAllPieces } from "@/lib/store";
 import {
   getAllSessions,
@@ -17,9 +17,10 @@ import {
 } from "@/lib/practice-db";
 import VideoRecorder from "@/components/VideoRecorder";
 import PracticeSessionCard from "@/components/PracticeSessionCard";
+import SheetMusicLink from "@/components/SheetMusicLink";
 import { syncToNotion } from "@/lib/notion-sync";
 
-type View = "journal" | "select-piece" | "recording" | "reflection";
+type View = "journal" | "select-piece" | "sheet-music" | "recording" | "reflection";
 
 export default function PracticePage() {
   return (
@@ -52,6 +53,9 @@ function PracticePageInner() {
   const savedSessionRef = useRef<PracticeSession | null>(null);
   const [storageInfo, setStorageInfo] = useState<string | null>(null);
   const [pieceSearch, setPieceSearch] = useState("");
+  const [showPiecePicker, setShowPiecePicker] = useState(false);
+  const [pieceSheets, setPieceSheets] = useState<SheetMusic[]>([]);
+  const [loadingPieceSheets, setLoadingPieceSheets] = useState(false);
   const didAutoStart = useRef(false);
 
   type SortField = "date" | "piece" | "duration";
@@ -60,18 +64,6 @@ function PracticePageInner() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [filterPieceId, setFilterPieceId] = useState<string | null>(null);
   const [showSortMenu, setShowSortMenu] = useState(false);
-  const [recordExpanded, setRecordExpanded] = useState(false);
-  const collapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const expandRecord = useCallback(() => {
-    if (collapseTimer.current) clearTimeout(collapseTimer.current);
-    setRecordExpanded(true);
-    collapseTimer.current = setTimeout(() => setRecordExpanded(false), 2500);
-  }, []);
-
-  useEffect(() => {
-    return () => { if (collapseTimer.current) clearTimeout(collapseTimer.current); };
-  }, []);
 
   const loadSessions = useCallback(() => {
     setSessions(getAllSessions());
@@ -102,6 +94,16 @@ function PracticePageInner() {
     };
   }, [loadSessions, loadPieces]);
 
+  const fetchSheetsForPiece = useCallback((piece: MusicPiece) => {
+    setPieceSheets([]);
+    setLoadingPieceSheets(true);
+    fetch(`/api/sheets?q=${encodeURIComponent(`${piece.title} ${piece.composerName}`)}`)
+      .then((res) => (res.ok ? res.json() : { sheets: [] }))
+      .then((data) => setPieceSheets(data.sheets || []))
+      .catch(() => {})
+      .finally(() => setLoadingPieceSheets(false));
+  }, []);
+
   // Auto-start recording flow once if pieceId is provided via URL
   useEffect(() => {
     if (didAutoStart.current) return;
@@ -110,23 +112,33 @@ function PracticePageInner() {
       if (piece) {
         didAutoStart.current = true;
         setSelectedPiece(piece);
-        setView("recording");
+        setView("sheet-music");
+        fetchSheetsForPiece(piece);
       }
     }
-  }, [preselectedPieceId, pieces]);
+  }, [preselectedPieceId, pieces, fetchSheetsForPiece]);
 
   const startRecordFlow = useCallback(() => {
-    if (pieces.length === 0) return;
+    if (pieces.length === 0) {
+      router.push("/");
+      return;
+    }
     if (pieces.length === 1) {
       setSelectedPiece(pieces[0]);
-      setView("recording");
+      setView("sheet-music");
+      fetchSheetsForPiece(pieces[0]);
     } else {
       setView("select-piece");
     }
-  }, [pieces]);
+  }, [pieces, router, fetchSheetsForPiece]);
 
   const handlePieceSelect = useCallback((piece: MusicPiece) => {
     setSelectedPiece(piece);
+    setView("sheet-music");
+    fetchSheetsForPiece(piece);
+  }, [fetchSheetsForPiece]);
+
+  const startRecording = useCallback(() => {
     setView("recording");
   }, []);
 
@@ -187,6 +199,8 @@ function PracticePageInner() {
     setPendingThumbnail("");
     setPendingDuration(0);
     setSelectedPiece(null);
+    setPieceSheets([]);
+    setShowPiecePicker(false);
     setJournal("");
     setWhatWentWell("");
     setNeedsWork("");
@@ -250,6 +264,8 @@ function PracticePageInner() {
     setPendingThumbnail("");
     setPendingDuration(0);
     setSelectedPiece(null);
+    setPieceSheets([]);
+    setShowPiecePicker(false);
     setJournal("");
     setWhatWentWell("");
     setNeedsWork("");
@@ -359,6 +375,7 @@ function PracticePageInner() {
           <h1 className="font-display text-xl italic font-light text-text-primary">
             {view === "journal" && "Practice Journal"}
             {view === "select-piece" && "Select Piece"}
+            {view === "sheet-music" && "Sheet Music"}
             {view === "recording" && "Record Practice"}
             {view === "reflection" && "Reflect on Today"}
           </h1>
@@ -369,44 +386,44 @@ function PracticePageInner() {
           )}
         </div>
 
-        {(view === "select-piece" || view === "reflection") && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={handleCancel}
-            className="h-9 px-4 rounded-full flex items-center gap-1.5 glass-card font-body text-xs font-medium text-text-secondary"
-          >
-            Cancel
-          </motion.button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Cancel — all non-journal views except recording */}
+          {(view === "select-piece" || view === "sheet-music" || view === "reflection") && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={handleCancel}
+              className="h-9 px-4 rounded-full flex items-center gap-1.5 glass-card font-body text-xs font-medium text-text-secondary"
+            >
+              Cancel
+            </motion.button>
+          )}
 
-        {/* Sort & Filter — inline in header */}
-        {view === "journal" && sessions.length > 0 && (
-          <div className="flex items-center gap-2">
-            {/* Active filter pill */}
-            {filterPieceName && (
-              <motion.button
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setFilterPieceId(null)}
-                className="h-8 px-2.5 rounded-lg flex items-center gap-1 text-[10px] font-body font-medium truncate max-w-[120px]"
-                style={{
-                  background: "rgba(197, 201, 96, 0.1)",
-                  color: "#c5c960",
-                  border: "1px solid rgba(197, 201, 96, 0.2)",
-                }}
-              >
-                <span className="truncate">{filterPieceName}</span>
-                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="shrink-0">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </motion.button>
-            )}
+          {/* Active filter pill — journal view with filter active */}
+          {view === "journal" && sessions.length > 0 && filterPieceName && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setFilterPieceId(null)}
+              className="h-8 px-2.5 rounded-lg flex items-center gap-1 text-[10px] font-body font-medium truncate max-w-[120px]"
+              style={{
+                background: "rgba(197, 201, 96, 0.1)",
+                color: "#c5c960",
+                border: "1px solid rgba(197, 201, 96, 0.2)",
+              }}
+            >
+              <span className="truncate">{filterPieceName}</span>
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="shrink-0">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </motion.button>
+          )}
 
-            {/* Sort button */}
+          {/* Sort button — journal view with sessions */}
+          {view === "journal" && sessions.length > 0 && (
             <div className="relative">
               <button
                 onClick={() => setShowSortMenu(!showSortMenu)}
@@ -537,8 +554,29 @@ function PracticePageInner() {
                 )}
               </AnimatePresence>
             </div>
-          </div>
-        )}
+          )}
+
+          {/* Add entry — only when sessions exist (empty state has its own centered CTA) */}
+          {view === "journal" && sessions.length > 0 && (
+            <button
+              onClick={startRecordFlow}
+              className="w-8 h-8 rounded-full flex items-center justify-center glass-card shrink-0"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#c5c960"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Content */}
@@ -579,32 +617,30 @@ function PracticePageInner() {
                         : "Add some pieces to your collection first, then record practice videos."}
                     </p>
                   </div>
-                  {pieces.length > 0 && (
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={startRecordFlow}
-                      className="h-11 px-6 rounded-full flex items-center gap-2 font-body text-sm font-medium"
-                      style={{
-                        background:
-                          "linear-gradient(135deg, #c5c960 0%, #a8b84d 100%)",
-                        color: "#1a1f0e",
-                      }}
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={startRecordFlow}
+                    className="h-11 px-6 rounded-full flex items-center gap-2 font-body text-sm font-medium"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, #c5c960 0%, #a8b84d 100%)",
+                      color: "#1a1f0e",
+                    }}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#1a1f0e"
+                      strokeWidth="2"
+                      strokeLinecap="round"
                     >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="#1a1f0e"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      >
-                        <circle cx="12" cy="12" r="10" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                      Record First Session
-                    </motion.button>
-                  )}
+                      <circle cx="12" cy="12" r="10" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    {pieces.length > 0 ? "Add Journal Entry" : "Go to Collection"}
+                  </motion.button>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -727,6 +763,152 @@ function PracticePageInner() {
                   </p>
                 )}
               </div>
+            </motion.div>
+          )}
+
+          {/* SHEET MUSIC VIEW */}
+          {view === "sheet-music" && selectedPiece && (
+            <motion.div
+              key="sheet-music"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-4"
+            >
+              {/* Piece selector — inline */}
+              <AnimatePresence mode="wait">
+                {!showPiecePicker ? (
+                  <motion.button
+                    key="piece-card"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => { setShowPiecePicker(true); setPieceSearch(""); }}
+                    className="w-full glass-card p-4 flex items-center gap-3 text-left"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-base font-body font-medium text-text-primary truncate">
+                        {selectedPiece.title}
+                      </p>
+                      <p className="text-xs font-body text-text-secondary mt-0.5 truncate">
+                        {selectedPiece.composerName}
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-body text-text-secondary/50 shrink-0">Change</span>
+                  </motion.button>
+                ) : (
+                  <motion.div
+                    key="piece-picker"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="glass-card rounded-2xl overflow-hidden"
+                  >
+                    {/* Search row */}
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b6e58" strokeWidth="2" strokeLinecap="round">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" x2="16.65" y1="21" y2="16.65" />
+                      </svg>
+                      <input
+                        type="text"
+                        value={pieceSearch}
+                        onChange={(e) => setPieceSearch(e.target.value)}
+                        placeholder="Search pieces…"
+                        autoFocus
+                        className="flex-1 bg-transparent text-sm font-body text-text-primary placeholder:text-text-secondary/40 outline-none"
+                      />
+                      <button
+                        onClick={() => { setShowPiecePicker(false); setPieceSearch(""); }}
+                        className="text-[11px] font-body text-text-secondary/60"
+                      >
+                        Done
+                      </button>
+                    </div>
+                    {/* No results */}
+                    {filteredPieces.length === 0 && (
+                      <p className="px-4 py-4 text-xs font-body text-text-secondary/50 text-center">
+                        No pieces found matching &ldquo;{pieceSearch}&rdquo;
+                      </p>
+                    )}
+                    {/* Piece rows — flat, no nested cards */}
+                    {filteredPieces.map((piece, i) => (
+                      <button
+                        key={piece.id}
+                        onClick={() => {
+                          setSelectedPiece(piece);
+                          setShowPiecePicker(false);
+                          setPieceSearch("");
+                          fetchSheetsForPiece(piece);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/5"
+                        style={i > 0 ? { borderTop: "1px solid rgba(255,255,255,0.04)" } : undefined}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-body font-medium text-text-primary truncate">
+                            {piece.title}
+                          </p>
+                          <p className="text-[11px] font-body text-text-secondary truncate">
+                            {piece.composerName}
+                          </p>
+                        </div>
+                        {piece.id === selectedPiece.id && (
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#c5c960" strokeWidth="2.5" strokeLinecap="round" className="shrink-0">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Sheet music */}
+              <div>
+                <p className="text-[10px] font-body font-medium text-text-secondary/50 uppercase tracking-widest px-1 mb-2">
+                  Sheet Music
+                </p>
+                {loadingPieceSheets ? (
+                  <div className="flex items-center gap-2.5 px-1 py-3">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      className="w-3.5 h-3.5 rounded-full border border-[#a8d8c8]/30 border-t-[#a8d8c8] shrink-0"
+                    />
+                    <p className="text-xs font-body text-text-secondary/60">
+                      Loading sheet music…
+                    </p>
+                  </div>
+                ) : pieceSheets.length > 0 ? (
+                  <div className="space-y-2">
+                    {pieceSheets.slice(0, 3).map((sheet, i) => (
+                      <SheetMusicLink key={i} sheet={sheet} index={i} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs font-body text-text-secondary/50 px-1 py-3">
+                    No sheet music found.
+                  </p>
+                )}
+              </div>
+
+              {/* Start recording CTA */}
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={startRecording}
+                className="w-full h-12 rounded-full flex items-center justify-center gap-2 font-body text-sm font-medium mt-2"
+                style={{
+                  background: "linear-gradient(135deg, #c5c960 0%, #a8b84d 100%)",
+                  color: "#1a1f0e",
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a1f0e" strokeWidth="2.5" strokeLinecap="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                Start Recording
+              </motion.button>
             </motion.div>
           )}
 
@@ -1008,78 +1190,6 @@ function PracticePageInner() {
         </AnimatePresence>
       </div>
 
-      {/* Record FAB above bottom nav */}
-      <AnimatePresence>
-        {view === "journal" && pieces.length > 0 && sessions.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.6 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.6 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25 }}
-            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 pb-[env(safe-area-inset-bottom,0px)]"
-          >
-            <motion.button
-              layout
-              whileTap={{ scale: 0.9 }}
-              onHoverStart={() => { if (collapseTimer.current) clearTimeout(collapseTimer.current); setRecordExpanded(true); }}
-              onHoverEnd={() => setRecordExpanded(false)}
-              onClick={() => {
-                if (recordExpanded) {
-                  startRecordFlow();
-                } else {
-                  expandRecord();
-                }
-              }}
-              className="relative flex items-center justify-center rounded-full overflow-hidden"
-              style={{
-                background: "linear-gradient(135deg, #c5c960 0%, #a8b84d 100%)",
-                boxShadow: "0 4px 20px rgba(197,201,96,0.35)",
-              }}
-              transition={{ type: "spring", stiffness: 500, damping: 30 }}
-            >
-              <motion.div
-                layout="position"
-                className="flex items-center gap-2"
-                animate={{
-                  paddingLeft: recordExpanded ? 20 : 14,
-                  paddingRight: recordExpanded ? 20 : 14,
-                  paddingTop: recordExpanded ? 12 : 14,
-                  paddingBottom: recordExpanded ? 12 : 14,
-                }}
-                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#1a1f0e"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-                <AnimatePresence mode="popLayout">
-                  {recordExpanded && (
-                    <motion.span
-                      key="label"
-                      className="text-xs font-body font-semibold whitespace-nowrap"
-                      style={{ color: "#1a1f0e" }}
-                      initial={{ opacity: 0, width: 0, filter: "blur(4px)" }}
-                      animate={{ opacity: 1, width: "auto", filter: "blur(0px)" }}
-                      exit={{ opacity: 0, width: 0, filter: "blur(4px)" }}
-                      transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                    >
-                      Record
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            </motion.button>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

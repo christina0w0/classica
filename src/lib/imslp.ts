@@ -30,7 +30,7 @@ export async function searchIMSLP(query: string): Promise<SheetMusic[]> {
       const id = entry.id || entry.permlink || key;
       const title =
         typeof id === "string" ? id.replace(/_/g, " ") : `Sheet Music ${key}`;
-      const url = `https://imslp.org/wiki/${encodeURIComponent(String(id))}`;
+      const url = `https://imslp.org/wiki/${encodeURI(String(id))}`;
 
       results.push({ title, url, composer: "" });
       if (results.length >= 5) break;

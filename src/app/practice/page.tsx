@@ -552,8 +552,8 @@ function PracticePageInner() {
             </div>
           )}
 
-          {/* Add entry — always visible in journal view */}
-          {view === "journal" && (
+          {/* Add entry — only when sessions exist; empty state has its own centered CTA */}
+          {view === "journal" && sessions.length > 0 && (
             <button
               onClick={startRecordFlow}
               className="w-8 h-8 rounded-full flex items-center justify-center glass-card shrink-0"

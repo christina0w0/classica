@@ -612,9 +612,7 @@ function PracticePageInner() {
                       No practice sessions yet
                     </p>
                     <p className="text-xs font-body text-text-secondary max-w-[240px]">
-                      {pieces.length > 0
-                        ? "Record your first video practice session to start tracking your progress."
-                        : "Add some pieces to your collection first, then record practice videos."}
+                      Record your first video practice session to start tracking your progress.
                     </p>
                   </div>
                   <motion.button
@@ -639,7 +637,7 @@ function PracticePageInner() {
                       <circle cx="12" cy="12" r="10" />
                       <circle cx="12" cy="12" r="3" />
                     </svg>
-                    {pieces.length > 0 ? "Add Journal Entry" : "Go to Collection"}
+                    Add Journal Entry
                   </motion.button>
                 </div>
               ) : (

@@ -1,26 +1,143 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Times Ten";
+  src: url("/fonts/TimesTen-Italic-clean.woff2") format("woff2"),
+    url("/fonts/TimesTen-Italic-clean.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg-primary: #1a1f0e;
+  --bg-card: rgba(42, 48, 32, 0.7);
+  --bg-card-solid: #2a3020;
+  --accent-primary: #c5c960;
+  --accent-secondary: #a8d8c8;
+  --text-primary: #e8e4d4;
+  --text-secondary: #9a9e80;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --glow-primary: rgba(197, 201, 96, 0.15);
+  --glow-secondary: rgba(168, 216, 200, 0.1);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-card: var(--bg-card);
+  --color-bg-card-solid: var(--bg-card-solid);
+  --color-accent: var(--accent-primary);
+  --color-accent-secondary: var(--accent-secondary);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border-subtle: var(--border-subtle);
+  --font-display: "Times Ten", "Times New Roman", Georgia, serif;
+  --font-body: var(--font-dm-sans);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.glass-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+}
+
+.nav-pill {
+  background: rgba(26, 31, 14, 0.92);
+  backdrop-filter: blur(32px) saturate(1.4);
+  -webkit-backdrop-filter: blur(32px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.5),
+    0 1px 3px rgba(0, 0, 0, 0.3),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.05);
+}
+
+.glow-spotlight {
+  background: radial-gradient(
+    ellipse at center,
+    var(--glow-primary) 0%,
+    transparent 70%
+  );
+}
+
+.glow-mint {
+  background: radial-gradient(
+    ellipse at center,
+    var(--glow-secondary) 0%,
+    transparent 70%
+  );
+}
+
+@keyframes float-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(12px, -18px) scale(1.05); }
+  50% { transform: translate(-8px, -30px) scale(0.97); }
+  75% { transform: translate(-16px, -10px) scale(1.03); }
+}
+
+@keyframes float-drift-reverse {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(-14px, 16px) scale(0.96); }
+  50% { transform: translate(10px, 24px) scale(1.04); }
+  75% { transform: translate(18px, 8px) scale(0.98); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+html {
+  scrollbar-width: none;
+}
+
+/* ============================================
+   PIXEL ART STYLE LAYER
+   Scanlines, pixelated images, crispy text.
+   Glass, blur, and rounded corners preserved.
+   ============================================ */
+
+body {
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
+  text-rendering: optimizeSpeed;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99999;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 3px,
+    rgba(0, 0, 0, 0.035) 3px,
+    rgba(0, 0, 0, 0.035) 4px
+  );
+}
+
+img {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
 }

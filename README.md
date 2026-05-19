@@ -1,36 +1,40 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Classica — Classical Music Identifier & Collection
+
+A mobile-first web app that identifies classical music, organizes your collection chronologically by era and composer, finds sheet music on IMSLP, and surfaces YouTube performances.
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) on your phone or browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## API Keys
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Copy `.env.example` to `.env.local` and add your keys:
 
-## Learn More
+| Service | Purpose | Get it at |
+|---------|---------|-----------|
+| **ACRCloud** | Music identification (like Shazam) | [acrcloud.com](https://www.acrcloud.com) — free tier: 100 req/day |
+| **YouTube Data API** | Performance video search | [console.cloud.google.com](https://console.cloud.google.com) — free tier: 10,000 units/day |
 
-To learn more about Next.js, take a look at the following resources:
+The app works without API keys — music identification and YouTube search will be unavailable, but you can still browse composers and manually explore IMSLP/YouTube via direct links.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Features
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Identify** — Record audio to identify classical music via ACRCloud
+- **Collect** — Save identified pieces to your personal chronological collection
+- **Practice Journal** — Record practice videos, reflect with guided prompts, and save notes
+- **Timeline** — Browse composers across Baroque, Classical, Romantic, and Modern eras
+- **Sheet Music** — Find free sheet music on IMSLP for any piece
+- **Performances** — Watch YouTube videos of different artists performing each piece
+- **Composer Bios** — Read about composers with data from Wikipedia
 
-## Deploy on Vercel
+## Tech Stack
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Next.js 16 (App Router, TypeScript)
+- Tailwind CSS
+- Framer Motion
+- localStorage for persistence (no backend needed)

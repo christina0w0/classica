@@ -3,6 +3,7 @@ import { DM_Sans } from "next/font/google";
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -44,6 +45,7 @@ export default function RootLayout({
         <div className="mx-auto min-h-dvh max-w-md">{children}</div>
         <BottomNav />
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

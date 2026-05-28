@@ -18,7 +18,6 @@ import {
 import VideoRecorder from "@/components/VideoRecorder";
 import PracticeSessionCard from "@/components/PracticeSessionCard";
 import SheetMusicLink from "@/components/SheetMusicLink";
-import { syncToNotion } from "@/lib/notion-sync";
 
 type View = "journal" | "select-piece" | "sheet-music" | "recording" | "reflection";
 
@@ -48,8 +47,6 @@ function PracticePageInner() {
   const [nextFocus, setNextFocus] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [notionSyncing, setNotionSyncing] = useState(false);
-  const [notionSyncResult, setNotionSyncResult] = useState<"success" | "error" | null>(null);
   const savedSessionRef = useRef<PracticeSession | null>(null);
   const [storageInfo, setStorageInfo] = useState<string | null>(null);
   const [pieceSearch, setPieceSearch] = useState("");
@@ -219,25 +216,8 @@ function PracticePageInner() {
     }
   };
 
-  const handleNotionSync = async () => {
-    const session = savedSessionRef.current;
-    if (!session || notionSyncing) return;
-    setNotionSyncing(true);
-    setNotionSyncResult(null);
-    try {
-      await syncToNotion(session);
-      setNotionSyncResult("success");
-    } catch {
-      setNotionSyncResult("error");
-    } finally {
-      setNotionSyncing(false);
-    }
-  };
-
   const handleDone = () => {
     setSaved(false);
-    setNotionSyncing(false);
-    setNotionSyncResult(null);
     savedSessionRef.current = null;
     resetAfterSave();
   };
@@ -1039,69 +1019,27 @@ function PracticePageInner() {
                     >
                       Discard
                     </motion.button>
-                    <div className="flex gap-2">
-                      <motion.button
-                        whileTap={{ scale: 0.95 }}
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="flex-1 h-11 rounded-full text-sm font-body font-medium flex items-center justify-center gap-2"
-                        style={{
-                          background: "linear-gradient(135deg, #c5c960 0%, #a8b84d 100%)",
-                          color: "#1a1f0e",
-                          opacity: saving ? 0.6 : 1,
-                        }}
-                      >
-                        {saving ? (
-                          <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                            className="w-4 h-4 rounded-full border-2 border-[#1a1f0e]/30 border-t-[#1a1f0e]"
-                          />
-                        ) : (
-                          "Save Practice"
-                        )}
-                      </motion.button>
-                      <motion.button
-                        whileTap={{ scale: 0.9 }}
-                        onClick={async () => {
-                          if (!pendingBlob || !selectedPiece) return;
-                          setSaving(true);
-                          try {
-                            const persisted = await persistSession();
-                            if (!persisted) return;
-                            savedSessionRef.current = persisted.session;
-                            setSaved(true);
-                            setNotionSyncing(true);
-                            try {
-                              await syncToNotion(persisted.session);
-                              setNotionSyncResult("success");
-                            } catch {
-                              setNotionSyncResult("error");
-                            } finally {
-                              setNotionSyncing(false);
-                            }
-                          } catch {
-                            // storage error
-                          } finally {
-                            setSaving(false);
-                          }
-                        }}
-                        disabled={saving}
-                        title="Save & Sync to Notion"
-                        className="h-11 w-11 rounded-full flex items-center justify-center shrink-0"
-                        style={{
-                          background: "rgba(197, 201, 96, 0.15)",
-                          border: "1px solid rgba(197, 201, 96, 0.3)",
-                          opacity: saving ? 0.6 : 1,
-                        }}
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c5c960" strokeWidth="2">
-                          <path d="M4 4h16v16H4z" />
-                          <path d="M8 8h2v8H8z" />
-                          <path d="M14 8l-2 8h2l2-8h-2z" />
-                        </svg>
-                      </motion.button>
-                    </div>
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="w-full h-11 rounded-full text-sm font-body font-medium flex items-center justify-center gap-2"
+                      style={{
+                        background: "linear-gradient(135deg, #c5c960 0%, #a8b84d 100%)",
+                        color: "#1a1f0e",
+                        opacity: saving ? 0.6 : 1,
+                      }}
+                    >
+                      {saving ? (
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          className="w-4 h-4 rounded-full border-2 border-[#1a1f0e]/30 border-t-[#1a1f0e]"
+                        />
+                      ) : (
+                        "Save Practice"
+                      )}
+                    </motion.button>
                   </motion.div>
                 ) : (
                   <motion.div
@@ -1111,7 +1049,7 @@ function PracticePageInner() {
                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                     className="space-y-3"
                   >
-                    <div className="glass-card rounded-xl p-4 space-y-3">
+                    <div className="glass-card rounded-xl p-4">
                       <div className="flex items-center gap-2.5">
                         <div className="w-6 h-6 rounded-full flex items-center justify-center bg-[#c5c960]/20">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c5c960" strokeWidth="2.5" strokeLinecap="round">
@@ -1119,64 +1057,6 @@ function PracticePageInner() {
                           </svg>
                         </div>
                         <span className="text-sm font-body text-text-primary">Session saved</span>
-                      </div>
-
-                      <div className="h-px bg-white/5" />
-
-                      <div className="flex items-center gap-2.5">
-                        {notionSyncing ? (
-                          <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                            className="w-6 h-6 rounded-full border-2 border-[#c5c960]/20 border-t-[#c5c960] shrink-0"
-                          />
-                        ) : notionSyncResult === "success" ? (
-                          <div className="w-6 h-6 rounded-full flex items-center justify-center bg-[#c5c960]/20">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c5c960" strokeWidth="2.5" strokeLinecap="round">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                          </div>
-                        ) : notionSyncResult === "error" ? (
-                          <div className="w-6 h-6 rounded-full flex items-center justify-center bg-red-500/20">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round">
-                              <line x1="18" y1="6" x2="6" y2="18" />
-                              <line x1="6" y1="6" x2="18" y2="18" />
-                            </svg>
-                          </div>
-                        ) : (
-                          <div className="w-6 h-6 rounded-full flex items-center justify-center bg-white/5">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b6e58" strokeWidth="2">
-                              <path d="M4 4h16v16H4z" />
-                              <path d="M8 8h2v8H8z" />
-                              <path d="M14 8l-2 8h2l2-8h-2z" />
-                            </svg>
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-body text-text-primary">
-                            {notionSyncing
-                              ? "Syncing to Notion..."
-                              : notionSyncResult === "success"
-                                ? "Synced to Notion"
-                                : notionSyncResult === "error"
-                                  ? "Sync failed"
-                                  : "Not synced to Notion"}
-                          </span>
-                        </div>
-                        {!notionSyncing && notionSyncResult !== "success" && (
-                          <motion.button
-                            whileTap={{ scale: 0.9 }}
-                            onClick={handleNotionSync}
-                            className="text-xs font-body font-medium px-3 py-1.5 rounded-full"
-                            style={{
-                              color: "#c5c960",
-                              background: "rgba(197, 201, 96, 0.1)",
-                              border: "1px solid rgba(197, 201, 96, 0.2)",
-                            }}
-                          >
-                            {notionSyncResult === "error" ? "Retry" : "Sync"}
-                          </motion.button>
-                        )}
                       </div>
                     </div>
 

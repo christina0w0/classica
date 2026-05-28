@@ -4,8 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PracticeSession } from "@/types";
 import { getVideo } from "@/lib/practice-db";
-import { getSessionById, updateSessionReflection } from "@/lib/practice-store";
-import { syncToNotion } from "@/lib/notion-sync";
+import { updateSessionReflection } from "@/lib/practice-store";
 
 interface PracticeSessionCardProps {
   session: PracticeSession;
@@ -31,8 +30,6 @@ export default function PracticeSessionCard({
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState(session.notionSyncStatus);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const [editingReflection, setEditingReflection] = useState(false);
@@ -121,15 +118,6 @@ export default function PracticeSessionCard({
     });
   };
 
-
-  const handleNotionSync = useCallback(async () => {
-    setSyncing(true);
-    setSyncStatus("pending");
-    const fresh = getSessionById(session.id);
-    const success = await syncToNotion(fresh ?? session);
-    setSyncStatus(success ? "synced" : "error");
-    setSyncing(false);
-  }, [session]);
 
   return (
     <motion.div
@@ -363,55 +351,6 @@ export default function PracticeSessionCard({
                   </motion.div>
                 )}
               </AnimatePresence>
-
-              {/* Notion Sync */}
-              <div className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] px-2.5 py-2">
-                <div className="flex items-center gap-1.5">
-                  {syncStatus === "synced" ? (
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2.5">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  ) : syncStatus === "error" ? (
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.5">
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="15" y1="9" x2="9" y2="15" />
-                      <line x1="9" y1="9" x2="15" y2="15" />
-                    </svg>
-                  ) : syncStatus === "pending" ? (
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                      className="w-3 h-3 rounded-full border-[1.5px] border-accent/30 border-t-accent"
-                    />
-                  ) : (
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b6e58" strokeWidth="1.5">
-                      <path d="M4 4h16v16H4z" />
-                      <path d="M8 8h2v8H8z" />
-                      <path d="M14 8l-2 8h2l2-8h-2z" />
-                    </svg>
-                  )}
-                  <span className="text-[10px] font-body text-text-secondary">
-                    {syncStatus === "synced"
-                      ? "Synced to Notion"
-                      : syncStatus === "error"
-                        ? "Sync failed"
-                        : syncStatus === "pending"
-                          ? "Syncing..."
-                          : "Notion"}
-                  </span>
-                </div>
-                <button
-                  onClick={handleNotionSync}
-                  disabled={syncing}
-                  className="text-[10px] font-body font-medium px-2.5 py-1 rounded-full"
-                  style={{
-                    background: "rgba(197, 201, 96, 0.15)",
-                    color: syncing ? "#6b6e58" : "#c5c960",
-                  }}
-                >
-                  {syncing ? "Syncing..." : syncStatus === "synced" ? "Re-sync" : "Sync"}
-                </button>
-              </div>
 
               {/* Delete */}
               <div className="pt-1">

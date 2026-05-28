@@ -4,6 +4,7 @@ import { MusicPiece, Composer } from "@/types";
 
 const COLLECTION_KEY = "classica_collection";
 const CUSTOM_COMPOSERS_KEY = "classica_custom_composers";
+const HIDDEN_COMPOSERS_KEY = "classica_hidden_composers";
 
 function getCollection(): MusicPiece[] {
   if (typeof window === "undefined") return [];
@@ -126,12 +127,38 @@ export function updateCustomComposer(id: string, updates: Partial<Composer>): vo
   }
 }
 
+function getHiddenComposers(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(HIDDEN_COMPOSERS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveHiddenComposers(ids: string[]): void {
+  localStorage.setItem(HIDDEN_COMPOSERS_KEY, JSON.stringify(ids));
+}
+
+export function getAllHiddenComposers(): string[] {
+  return getHiddenComposers();
+}
+
 export function removeComposerAndPieces(composerId: string): void {
   const collection = getCollection().filter((p) => p.composerId !== composerId);
   saveCollection(collection);
 
-  const customs = getCustomComposers().filter((c) => c.id !== composerId);
-  saveCustomComposers(customs);
+  const customs = getCustomComposers();
+  const wasCustom = customs.some((c) => c.id === composerId);
+  if (wasCustom) {
+    saveCustomComposers(customs.filter((c) => c.id !== composerId));
+  } else {
+    const hidden = getHiddenComposers();
+    if (!hidden.includes(composerId)) {
+      saveHiddenComposers([...hidden, composerId]);
+    }
+  }
 
   window.dispatchEvent(new Event("collection-updated"));
 }

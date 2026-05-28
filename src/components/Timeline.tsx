@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Composer, MusicEra, ERA_CONFIG, ComposerRelationship } from "@/types";
 import { composers, relationships } from "@/lib/composers-seed";
-import { getComposerPieceCounts, getAllCustomComposers, removeComposerAndPieces, getFavoritePieces } from "@/lib/store";
+import { getComposerPieceCounts, getAllCustomComposers, getAllHiddenComposers, removeComposerAndPieces, getFavoritePieces } from "@/lib/store";
 import { MusicPiece } from "@/types";
 import { getComposerImage } from "@/lib/composer-images";
 import ComposerBubble from "./ComposerBubble";
@@ -134,20 +134,59 @@ function EraSection({
 
   const [hoveredRel, setHoveredRel] = useState<ComposerRelationship | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const relPointerType = useRef<string>("mouse");
 
-  const handleRelMouseEnter = useCallback((e: React.MouseEvent, rel: ComposerRelationship) => {
-    setHoveredRel(rel);
-    setTooltipPos({ x: e.clientX, y: e.clientY });
+  const handleRelPointerEnter = useCallback((e: React.PointerEvent, rel: ComposerRelationship) => {
+    relPointerType.current = e.pointerType;
+    if (e.pointerType === "mouse") {
+      setHoveredRel(rel);
+      setTooltipPos({ x: e.clientX, y: e.clientY });
+    }
   }, []);
 
-  const handleRelMouseMove = useCallback((e: React.MouseEvent) => {
-    setTooltipPos({ x: e.clientX, y: e.clientY });
+  const handleRelPointerMove = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType === "mouse") {
+      setTooltipPos({ x: e.clientX, y: e.clientY });
+    }
   }, []);
 
-  const handleRelMouseLeave = useCallback(() => {
-    setHoveredRel(null);
-    setTooltipPos(null);
+  const handleRelPointerLeave = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType === "mouse") {
+      setHoveredRel(null);
+      setTooltipPos(null);
+    }
   }, []);
+
+  const handleRelPointerDown = useCallback((e: React.PointerEvent, rel: ComposerRelationship) => {
+    relPointerType.current = e.pointerType;
+    if (e.pointerType !== "mouse") {
+      e.preventDefault();
+      e.stopPropagation();
+      const sameRel = hoveredRel?.from === rel.from && hoveredRel?.to === rel.to;
+      if (sameRel) {
+        setHoveredRel(null);
+        setTooltipPos(null);
+      } else {
+        setHoveredRel(rel);
+        setTooltipPos({ x: e.clientX, y: e.clientY });
+      }
+    }
+  }, [hoveredRel]);
+
+  useEffect(() => {
+    if (!hoveredRel || relPointerType.current === "mouse") return;
+    const dismiss = () => {
+      setHoveredRel(null);
+      setTooltipPos(null);
+    };
+    const id = setTimeout(() => {
+      window.addEventListener("pointerdown", dismiss, { once: true });
+    }, 0);
+    return () => {
+      clearTimeout(id);
+      window.removeEventListener("pointerdown", dismiss);
+    };
+  }, [hoveredRel]);
 
   return (
     <div className="relative">
@@ -357,11 +396,12 @@ function EraSection({
                         d={pathD}
                         fill="none"
                         stroke="transparent"
-                        strokeWidth="15"
-                        style={{ pointerEvents: "stroke", cursor: "pointer" }}
-                        onMouseEnter={(e) => handleRelMouseEnter(e, rel)}
-                        onMouseMove={handleRelMouseMove}
-                        onMouseLeave={handleRelMouseLeave}
+                        strokeWidth="18"
+                        style={{ pointerEvents: "stroke", cursor: "pointer", touchAction: "manipulation" }}
+                        onPointerEnter={(e) => handleRelPointerEnter(e, rel)}
+                        onPointerMove={handleRelPointerMove}
+                        onPointerLeave={handleRelPointerLeave}
+                        onPointerDown={(e) => handleRelPointerDown(e, rel)}
                       />
                     </g>
                   );
@@ -448,11 +488,16 @@ export default function Timeline({ favoritesOnly = false }: { favoritesOnly?: bo
   }, []);
 
   const [customComposers, setCustomComposers] = useState<Composer[]>([]);
+  const [hiddenComposers, setHiddenComposers] = useState<string[]>([]);
 
   useEffect(() => {
     setCustomComposers(getAllCustomComposers());
+    setHiddenComposers(getAllHiddenComposers());
 
-    const onUpdate = () => setCustomComposers(getAllCustomComposers());
+    const onUpdate = () => {
+      setCustomComposers(getAllCustomComposers());
+      setHiddenComposers(getAllHiddenComposers());
+    };
     window.addEventListener("collection-updated", onUpdate);
     return () => window.removeEventListener("collection-updated", onUpdate);
   }, []);
@@ -462,22 +507,25 @@ export default function Timeline({ favoritesOnly = false }: { favoritesOnly?: bo
   }, [favPieces]);
 
   const displayComposers = useMemo(() => {
+    const hiddenSet = new Set(hiddenComposers);
     const allComposers = [...composers, ...customComposers.filter(
       (cc) => !composers.some((c) => c.id === cc.id),
     )];
     const composersWithPieces = allComposers.filter(
-      (c) => (pieceCounts[c.id] || 0) > 0,
+      (c) => (pieceCounts[c.id] || 0) > 0 && !hiddenSet.has(c.id),
     );
 
     const base = composersWithPieces.length > 0
       ? composersWithPieces
-      : composers.filter((c) => DEFAULT_COMPOSER_IDS.includes(c.id));
+      : composers.filter(
+          (c) => DEFAULT_COMPOSER_IDS.includes(c.id) && !hiddenSet.has(c.id),
+        );
 
     if (favoritesOnly) {
       return base.filter((c) => favComposerIds.has(c.id));
     }
     return base;
-  }, [pieceCounts, customComposers, favoritesOnly, favComposerIds]);
+  }, [pieceCounts, customComposers, hiddenComposers, favoritesOnly, favComposerIds]);
 
   const composersByEra = useMemo(() => {
     const map: Record<MusicEra, Composer[]> = {
@@ -522,6 +570,7 @@ export default function Timeline({ favoritesOnly = false }: { favoritesOnly?: bo
     removeComposerAndPieces(composerId);
     setPieceCounts(getComposerPieceCounts());
     setCustomComposers(getAllCustomComposers());
+    setHiddenComposers(getAllHiddenComposers());
   }, []);
 
   const toggleEra = useCallback((era: MusicEra) => {

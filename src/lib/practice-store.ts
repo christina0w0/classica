@@ -72,13 +72,3 @@ export function updateSessionReflection(
 ): void {
   updateSession(id, (session) => ({ ...session, reflection }));
 }
-
-export function updateSessionNotionSync(
-  id: string,
-  fields: Partial<Pick<PracticeSession, "notionPageId" | "notionCalendarEventId" | "notionSyncStatus" | "notionLastSynced">>,
-): void {
-  updateSession(id, (session) => ({
-    ...session,
-    ...fields,
-  }));
-}

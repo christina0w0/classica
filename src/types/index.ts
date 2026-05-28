@@ -66,8 +66,6 @@ export interface PracticeReflection {
   journal?: string;
 }
 
-export type NotionSyncStatus = 'pending' | 'synced' | 'error';
-
 export interface PracticeSession {
   id: string;
   pieceId: string;
@@ -78,10 +76,6 @@ export interface PracticeSession {
   notes?: string;
   reflection?: PracticeReflection;
   thumbnailDataUrl?: string;
-  notionPageId?: string;
-  notionCalendarEventId?: string;
-  notionSyncStatus?: NotionSyncStatus;
-  notionLastSynced?: string;
 }
 
 export const ERA_CONFIG: Record<

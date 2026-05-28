@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { MusicPiece, MusicEra, ERA_CONFIG } from "@/types";
-import { getAllPieces, getFavoritePieces } from "@/lib/store";
+import { getAllPieces, getFavoritePieces, removePiece } from "@/lib/store";
 import { composers as seedComposers } from "@/lib/composers-seed";
 import { getComposerImage } from "@/lib/composer-images";
+
+const LONG_PRESS_MS = 500;
 
 const ERAS: MusicEra[] = [
   "renaissance",
@@ -25,52 +28,128 @@ function PieceRow({
   piece,
   index,
   eraColor,
+  onDelete,
 }: {
   piece: MusicPiece;
   index: number;
   eraColor: string;
+  onDelete: (pieceId: string) => void;
 }) {
   const composerImage = getComposerImage(piece.composerId);
+  const thumbRef = useRef<HTMLDivElement>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didLongPress = useRef(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
+
+  const updatePopoverPos = useCallback(() => {
+    if (thumbRef.current) {
+      const rect = thumbRef.current.getBoundingClientRect();
+      setPopoverPos({
+        top: rect.bottom + 6,
+        left: rect.left + rect.width / 2,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!showDelete) return;
+    updatePopoverPos();
+    window.addEventListener("scroll", updatePopoverPos, true);
+    window.addEventListener("resize", updatePopoverPos);
+    return () => {
+      window.removeEventListener("scroll", updatePopoverPos, true);
+      window.removeEventListener("resize", updatePopoverPos);
+    };
+  }, [showDelete, updatePopoverPos]);
+
+  const startLongPress = useCallback(() => {
+    didLongPress.current = false;
+    longPressTimer.current = setTimeout(() => {
+      didLongPress.current = true;
+      setShowDelete(true);
+      if (navigator.vibrate) navigator.vibrate(30);
+    }, LONG_PRESS_MS);
+  }, []);
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  const dismiss = useCallback(() => setShowDelete(false), []);
+
+  const handleConfirmDelete = useCallback(() => {
+    onDelete(piece.id);
+    setShowDelete(false);
+  }, [piece.id, onDelete]);
+
+  const thumbBorder = showDelete ? "2px solid #ef4444" : `1.5px solid ${eraColor}55`;
+  const thumbShadow = showDelete
+    ? "0 0 16px rgba(239,68,68,0.35), 0 2px 6px rgba(0,0,0,0.3)"
+    : `0 2px 6px ${eraColor}14`;
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -12 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.04, duration: 0.3 }}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -8, transition: { duration: 0.18 } }}
+      transition={{
+        delay: index * 0.04,
+        type: "spring",
+        stiffness: 420,
+        damping: 30,
+      }}
     >
       <Link
         href={`/piece/${piece.id}`}
-        className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors hover:bg-white/[0.03] active:bg-white/[0.05] group"
+        onClick={(e) => {
+          if (didLongPress.current || showDelete) e.preventDefault();
+        }}
+        onPointerDown={startLongPress}
+        onPointerUp={cancelLongPress}
+        onPointerLeave={cancelLongPress}
+        onPointerCancel={cancelLongPress}
+        onContextMenu={(e) => e.preventDefault()}
+        className="group flex items-center gap-3 px-3 py-2 rounded-lg transition-colors hover:bg-white/[0.025] active:bg-white/[0.04]"
+        style={{
+          opacity: showDelete ? 0.55 : 1,
+          transition: "opacity 0.2s",
+        }}
       >
-        <div
-          className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center shrink-0"
+        <motion.div
+          ref={thumbRef}
+          whileTap={{ scale: 0.9 }}
+          className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center shrink-0"
           style={{
-            border: `1.5px solid ${eraColor}50`,
-            background: `radial-gradient(circle, ${eraColor}20, ${eraColor}08)`,
+            border: thumbBorder,
+            background: `radial-gradient(circle at 35% 35%, ${eraColor}30, ${eraColor}10)`,
+            boxShadow: thumbShadow,
+            transition: "border-color 0.2s, box-shadow 0.2s",
           }}
         >
           {composerImage ? (
             <img
               src={composerImage}
               alt={piece.composerName}
-              width={36}
-              height={36}
+              width={32}
+              height={32}
               className="w-full h-full object-cover"
+              style={{ opacity: showDelete ? 0.5 : 1, transition: "opacity 0.2s" }}
               loading="lazy"
             />
           ) : (
-            <span
-              className="text-[10px] font-body font-medium"
-              style={{ color: eraColor }}
-            >
+            <span className="text-[10px] font-body font-medium" style={{ color: eraColor }}>
               {piece.composerName.charAt(0)}
             </span>
           )}
-        </div>
+        </motion.div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <h3 className="text-[13px] font-body font-medium text-text-primary truncate">
+            <h3 className="text-[13px] font-body text-text-primary truncate">
               {piece.title}
             </h3>
             {piece.isFavorite && (
@@ -87,26 +166,76 @@ function PieceRow({
             )}
           </div>
           <p
-            className="text-[11px] font-body mt-0.5 truncate"
-            style={{ color: `${eraColor}90` }}
+            className="text-[10.5px] font-body mt-0.5 truncate"
+            style={{ color: `${eraColor}88` }}
           >
             {piece.composerName}
           </p>
         </div>
 
-        <svg
-          width="14"
-          height="14"
+        <motion.svg
+          initial={{ x: 0 }}
+          whileHover={{ x: 2 }}
+          transition={{ type: "spring", stiffness: 380, damping: 22 }}
+          width="12"
+          height="12"
           viewBox="0 0 24 24"
           fill="none"
-          stroke={`${eraColor}40`}
+          stroke={`${eraColor}55`}
           strokeWidth="2"
           strokeLinecap="round"
-          className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="shrink-0 opacity-40 group-hover:opacity-90 transition-opacity"
         >
           <path d="M9 18l6-6-6-6" />
-        </svg>
+        </motion.svg>
       </Link>
+
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {showDelete && popoverPos && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="fixed inset-0 z-[9998]"
+                  onClick={dismiss}
+                />
+                <motion.div
+                  initial={{ opacity: 0, y: -4, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.9 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 28 }}
+                  className="fixed z-[9999] -translate-x-1/2"
+                  style={{ top: popoverPos.top, left: popoverPos.left }}
+                >
+                  <div className="bg-black/90 backdrop-blur-md rounded-xl px-3 py-2 shadow-xl border border-white/10 whitespace-nowrap">
+                    <p className="text-[10px] font-body text-white/50 text-center mb-1.5">
+                      Remove {piece.title}?
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleConfirmDelete}
+                        className="flex-1 text-[11px] font-body font-semibold text-red-400 bg-red-500/15 hover:bg-red-500/25 active:bg-red-500/35 rounded-lg px-3 py-1.5 transition-colors"
+                      >
+                        Remove
+                      </button>
+                      <button
+                        onClick={dismiss}
+                        className="flex-1 text-[11px] font-body font-medium text-white/60 hover:text-white/80 bg-white/5 hover:bg-white/10 active:bg-white/15 rounded-lg px-3 py-1.5 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
     </motion.div>
   );
 }
@@ -117,12 +246,14 @@ function EraPiecesSection({
   expanded,
   onToggle,
   eraIndex,
+  onDeletePiece,
 }: {
   era: MusicEra;
   pieces: MusicPiece[];
   expanded: boolean;
   onToggle: () => void;
   eraIndex: number;
+  onDeletePiece: (pieceId: string) => void;
 }) {
   const config = ERA_CONFIG[era];
 
@@ -218,14 +349,17 @@ function EraPiecesSection({
           >
             {pieces.length > 0 ? (
               <div className="pb-3 px-1">
-                {pieces.map((piece, i) => (
-                  <PieceRow
-                    key={piece.id}
-                    piece={piece}
-                    index={i}
-                    eraColor={config.color}
-                  />
-                ))}
+                <AnimatePresence initial={false}>
+                  {pieces.map((piece, i) => (
+                    <PieceRow
+                      key={piece.id}
+                      piece={piece}
+                      index={i}
+                      eraColor={config.color}
+                      onDelete={onDeletePiece}
+                    />
+                  ))}
+                </AnimatePresence>
               </div>
             ) : (
               <div className="pb-6 px-4">
@@ -301,6 +435,12 @@ export default function PiecesTimeline({
     });
   }, []);
 
+  const handleDeletePiece = useCallback((pieceId: string) => {
+    removePiece(pieceId);
+    setPieces((prev) => prev.filter((p) => p.id !== pieceId));
+    window.dispatchEvent(new Event("collection-updated"));
+  }, []);
+
   return (
     <div className="flex flex-col">
       {ERAS.map((era, eraIdx) => (
@@ -311,6 +451,7 @@ export default function PiecesTimeline({
           expanded={expandedEras.has(era)}
           onToggle={() => toggleEra(era)}
           eraIndex={eraIdx}
+          onDeletePiece={handleDeletePiece}
         />
       ))}
     </div>

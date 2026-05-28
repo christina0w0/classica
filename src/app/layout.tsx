@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { DM_Sans } from "next/font/google";
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
+import { Analytics } from "@vercel/analytics/next";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -42,6 +43,7 @@ export default function RootLayout({
       <body className={`${dmSans.variable} antialiased`}>
         <div className="mx-auto min-h-dvh max-w-md">{children}</div>
         <BottomNav />
+        <Analytics />
       </body>
     </html>
   );
